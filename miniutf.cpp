@@ -330,13 +330,25 @@ std::u32string normalize32(const std::string & str, bool compose, bool * replace
         unicode_decompose(pt, codepoints);
     }
 
-    // Canonical Ordering Algorithm. TODO(j4cbo): this is inefficient!
-    for (size_t i = 0; i < codepoints.length() - 1; i++) {
-        int cccA = ccc(codepoints[i]), cccB = ccc(codepoints[i+1]);
-        if (cccA && cccB && cccA > cccB) {
-            std::swap(codepoints[i], codepoints[i+1]);
-            i = -1;
+    // Canonical Ordering Algorithm: sort all runs of characters with nonzero combining class.
+    size_t start = 0;
+    while (start < codepoints.length()) {
+        if (!ccc(codepoints[start])) {
+            start++;
+            continue;
         }
+
+        size_t end = start + 1;
+        while (end < codepoints.length() && ccc(codepoints[end])) {
+            end++;
+        }
+
+        if (end - start > 1) {
+            std::stable_sort(codepoints.begin() + start, codepoints.begin() + end,
+                             [] (char32_t a, char32_t b) { return ccc(a) < ccc(b); });
+        }
+
+        start = end + 1;
     }
 
     if (compose) {
