@@ -21,6 +21,8 @@
 
 #include "miniutf.hpp"
 
+#include <algorithm>
+
 namespace miniutf {
 
 #include "miniutfdata.h"
