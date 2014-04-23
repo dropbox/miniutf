@@ -37,6 +37,8 @@ CodepointInfo = namedtuple("CodepointInfo",
 
 Decomposition = namedtuple("Decomposition", [ "type", "mapping" ])
 
+# The highest possible codepoint is 0x10FFFF, so we need 21 bits to represent a codepoint.
+UNICODE_CODE_SPACE_BITS = 21
 
 def from_hex(s):
     """Parse a hex string.
@@ -190,7 +192,7 @@ def make_translation_map(name, translation_func):
     t2b, t2 = dump_table(name + "_t2", index2)
 
     out = "%s\n%s\n%s\n" % (v, t1, t2)
-    out += """static int32_t %s(int32_t codepoint) {
+    out += """int32_t %s(int32_t codepoint) {
         int offset_index;
     if (codepoint >= %d) return 0;
     offset_index = %s_t2[(%s_t1[codepoint >> %d] << %d) + (codepoint & %d)];
@@ -212,7 +214,7 @@ def make_direct_map(name, func):
     t2b, t2 = dump_table(name + "_t2", index2)
 
     out = "%s\n%s\n" % (t1, t2)
-    out += """static int32_t %s(int32_t codepoint) {
+    out += """int32_t %s(int32_t codepoint) {
     if (codepoint >= %d) return 0;
     return %s_t2[(%s_t1[codepoint >> %d] << %d) + (codepoint & %d)];
 }""" % (name, len(out_map), name, name, shift, shift, (1 << shift) - 1)
@@ -222,51 +224,113 @@ def make_direct_map(name, func):
 
 def make_collation_element_table(collation_elements):
 
-    def make_line(codepoints, level1_elements):
-        if codepoints[0] == 0:
-            return None
-        cp_string = ', '.join(["0x%08X" % pt for pt in list(codepoints)])
-        level1_elements.append(0)
-        level1_string = ', '.join(["0x%04X" % el for el in level1_elements])
-        out = "    %s, 0x00000000, %s" % (cp_string, level1_string)
-        return out
+    # The Defualt Unicode Collation Element Table (DUCET) is a mapping from sequences of
+    # codepoints to sequences of collation elements. We only implement "level 1" (see
+    # Unicode TR10 for more detail), so a collation element is the same as a "weight",
+    # a 16-bit integer. We use 32-bit integers throughout to represent weights.
+    #
+    # This function produces a hash table mapping sequences of codepoints to sequences of
+    # collation elements. The actual collation algorithm is implmented in
+    # minutf_collation.cpp; it takes an input string and performs a number of lookups in the
+    # hash table to produce a sort key. We use a simple hash function, defined below and
+    # also in C++, to hash sequences of codepoints into buckets.
+    #
+    # The DUCET is serialized as a sequence of records, of variable length. Each record is
+    # simply a key (nonempty sequence of codepoints) followed by a value (sequence of
+    # weights; values may be empty). These records are variable-length, so the high-order
+    # bits of the first word of the key contain metadata:
+    #
+    # Bit 31        Set if this is the *last* record in its bucket
+    # Bits 30:29    Length of key
+    # Bits 28:24    Length of value
+    # Bits 21:0:    First codepoint in key
+    #
+    # These records are serialized into an array called "ducet_data". A second array called
+    # ducet_bucket_indexes maps hash buckets to the index in ducet_data of the first record
+    # for that bucket. So, the lookup algorithm is:
+    #
+    # - Given a sequence of codepoint, hash them to find which bucket any mappings for that
+    #   key would be in.
+    # - Read ducet_bucket_indexes[bucket] to find where in ducet_data to start reading
+    # - Process variable-length records starting at ducet_data[ducet_bucket_indexes[bucket]]
+    #   and see if any key matches the input. Stop when a record indicating that it's the last
+    #   is found.
 
     def get_level_1_elements(elements):
         return [el[0] for el in elements if el[0] != 0]
 
-    sorted_cp = sorted(collation_elements.keys())
-    level1_elements = {}
-    for cp in sorted_cp:
-        level1_elements[cp] = get_level_1_elements(collation_elements[cp])
+    level1_elements = { key: get_level_1_elements(all_levels)
+                        for key, all_levels
+                        in collation_elements.iteritems() }
 
-    def is_empty(cp, l1els):
-        return len(list(cp)) == 1 and len(l1els) == 0
-    def is_short(cp, l1els):
-        return len(list(cp)) == 1 and len(l1els) == 1
-    def is_variable(cp, l1els):
-        return not is_empty(cp, l1els) and not is_short(cp, l1els)
+    # How many bits do we need to store key and value lengths?
+    longest_key = max(len(key) for key in level1_elements.iterkeys())
+    longest_value = max(len(value) for value in level1_elements.itervalues())
 
-    out = """/* Using ugly initialization because it takes too long to compile when written as a proper initializer.
- * Note that the variable-length data format uses 0 for field separators. This relies on assumptions
- * about data in the ducet that are not true for ducet beyond level 1.
- */
- """
+    KEY_BITS = longest_key.bit_length()
+    VALUE_BITS = longest_value.bit_length()
+    BUCKETS = len(level1_elements)
+    HASH_MULTIPLIER = 1031
+    DUCET_DATA_HIGH_BIT = 31
 
-    out += "static const uint32_t ducet_data_empty[] = {\n"
-    lines = ["    0x%08X" % cp[0] for cp in sorted_cp if is_empty(cp, level1_elements[cp])]
-    out += ",\n".join(lines)
-    out += "\n};\n"
+    bucket_to_data = defaultdict(list)
 
-    out += "static const uint32_t ducet_data_short[] = {\n"
-    lines = ["    0x%08X, 0x%04X" % (cp[0], level1_elements[cp][0]) for cp in sorted_cp if is_short(cp, level1_elements[cp])]
-    out += ",\n".join(lines)
-    out += "\n};\n"
+    def bucket(seq):
+        out = 0
+        for i in seq:
+            out = (out * HASH_MULTIPLIER + i) % BUCKETS
+        return out # % BUCKETS
 
-    out += "static const uint32_t ducet_data_variable[] = {\n"
-    lines = [make_line(cp, level1_elements[cp]) for cp in sorted_cp if is_variable(cp, level1_elements[cp])]
-    out += ",\n".join(filter(None, lines))
-    out += "\n};\n"
-    return len(collation_elements), out
+    for key, value in sorted(level1_elements.iteritems()):
+        header_word = (len(key) << (DUCET_DATA_HIGH_BIT - KEY_BITS)) \
+                    | (len(value) << (DUCET_DATA_HIGH_BIT - KEY_BITS - VALUE_BITS))
+        assert (header_word & ~(~0 << UNICODE_CODE_SPACE_BITS)) == 0
+        data = [ header_word | key[0] ] + list(key[1:]) + list(value)
+        bucket_to_data[bucket(key)].append(data)
+
+    # First, figure out what the total length of data_array should be, so we know where
+    # to point empty buckets.
+    data_array_len = 0
+    for b in range(BUCKETS):
+        if b in bucket_to_data:
+            for d in bucket_to_data[b]:
+                data_array_len += len(d)
+
+    bucket_to_offset = []
+
+    data_array = []
+
+    collision_count = defaultdict(int)
+
+    for b in range(BUCKETS):
+        if b in bucket_to_data:
+            bucket_to_offset.append(len(data_array))
+
+            collision_count[len(bucket_to_data[b])] += 1
+
+            # Set the high bit of the first word of the last record in this bucket.
+            bucket_to_data[b][-1][0] |= (1 << DUCET_DATA_HIGH_BIT)
+
+            for d in bucket_to_data[b]:
+                data_array.extend(d)
+
+        else:
+            bucket_to_offset.append(data_array_len)
+
+    assert len(data_array) == data_array_len
+
+    header = "// %r\n" % (collision_count, )
+
+    dd_bytes, dd = dump_table("ducet_data", data_array)
+    off_bytes, off = dump_table("ducet_bucket_indexes", bucket_to_offset)
+    footer = "#define DUCET_HASH_BUCKETS %d\n" % (BUCKETS, )
+    footer += "#define DUCET_HASH_MULTIPLIER %d\n" % (HASH_MULTIPLIER, )
+    footer += "#define DUCET_LONGEST_KEY %d\n" % (longest_key, )
+    footer += "#define DUCET_KEY_BITS %d\n" % (KEY_BITS, )
+    footer += "#define DUCET_VALUE_BITS %d\n" % (VALUE_BITS, )
+    footer += "#define DUCET_DATA_HIGH_BIT %d\n" % (DUCET_DATA_HIGH_BIT, )
+
+    return dd_bytes + off_bytes, header + dd + off + footer
 
 
 data, exclusions = parse_data("data-6.3.0")

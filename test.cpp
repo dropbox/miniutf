@@ -132,6 +132,49 @@ bool check_match_key(const string & s1, const string & s2) {
     return true;
 }
 
+bool check_collation_order() {
+    std::ifstream file("data-6.3.0/CollationTest/CollationTest_NON_IGNORABLE.txt");
+
+    if (!file) {
+        printf("/!\\ Skipping collation test.\n");
+        printf("    The collation test data is large, so it isn't included with miniutf.\n");
+        printf("    To fetch it, cd into data-6.3.0/ and run fetch-collation-data.sh\n");
+        return true;
+    }
+
+    std::vector<uint32_t> last_match_key {};
+    string last_line;
+
+    string line;
+    int i = 0;
+    while (std::getline(file, line)) {
+        auto semicolon = line.find(';');
+        if (semicolon == line.npos) {
+            continue;
+        }
+
+        string s = decode_hex(line.substr(0, semicolon));
+        std::vector<uint32_t> key = miniutf::match_key(s);
+
+        if (key < last_match_key) {
+            printf("Out of sequence, line %d:\n", i);
+            printf("%s\n", last_line.c_str());
+            printf("-> %s\n", match_key_as_hex(last_match_key).c_str());
+            printf("%s\n", line.c_str());
+            dump(s);
+            printf(" -> %s\n", match_key_as_hex(key).c_str());
+            return false;
+        }
+
+        last_match_key = key;
+        last_line = line;
+        i++;
+    }
+
+    printf("Collation OK\n");
+    return true;
+}
+
 int main(void) {
 
     string utf8_test = { '\x61', '\x00', '\xF0', '\x9F', '\x92', '\xA9' };
@@ -162,6 +205,9 @@ int main(void) {
     while (std::getline(file, line))
         if (process_test_line(line))
             return 1;
+
+    if (!check_collation_order())
+        return 1;
 
     printf("OK\n");
     return 0;
