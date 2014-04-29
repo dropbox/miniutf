@@ -156,7 +156,7 @@ int main(void) {
     if (!check_match_key(u8"ãäåèéêëüõñ",
                          u8"aaaeeeeuon")) { return 1; }
 
-    std::ifstream file("data-4.1.0/NormalizationTest.txt");
+    std::ifstream file("data-6.3.0/NormalizationTest.txt");
 
     string line;
     while (std::getline(file, line))

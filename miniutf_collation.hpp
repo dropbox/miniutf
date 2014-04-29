@@ -32,7 +32,7 @@ namespace miniutf {
  * Returns the level 1 sort key (no identical level), for use in user-facing searching.
  *
  * The key is generated using a truncated version of DUCET:
- * http://www.unicode.org/Public/UCA/4.1.0/allkeys.txt
+ * http://www.unicode.org/Public/UCA/6.3.0/allkeys.txt
  *
  */
 std::vector<uint32_t> match_key(const std::string & in);

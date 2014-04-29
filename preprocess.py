@@ -269,8 +269,8 @@ def make_collation_element_table(collation_elements):
     return len(collation_elements), out
 
 
-data, exclusions = parse_data("data-4.1.0")
-collation_elements = parse_collation("data-4.1.0")
+data, exclusions = parse_data("data-6.3.0")
+collation_elements = parse_collation("data-6.3.0")
 
 ccc = { codepoint: info.ccc for (codepoint, info) in data.iteritems() }
 
