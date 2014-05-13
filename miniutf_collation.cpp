@@ -67,7 +67,7 @@ static std::pair<const uint32_t *, int> find_elements(const char32_t * begin,
         uint32_t first_word = entry[0] & ~(~0ULL << UNICODE_CODE_SPACE_BITS);
 
         // If this entry matches [begin, end), then we're done.
-        if (key_len == (end - begin)
+        if (key_len == static_cast<uint32_t>(end - begin)
             && first_word == begin[0]
             && std::equal(entry + 1, entry + key_len, begin + 1)) {
             return { entry + key_len, value_len };
