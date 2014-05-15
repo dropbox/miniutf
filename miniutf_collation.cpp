@@ -99,7 +99,7 @@ void get_ducet_level1(std::u32string & str,
     assert(i < str.size());
 
     std::pair<const uint32_t *, int> best_key { nullptr, 0 };
-    size_t best_length;
+    size_t best_length = 0;
 
     // S2.1: Find the longest initial substring S at each point that has a match in the table.
 
