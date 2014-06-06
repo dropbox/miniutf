@@ -199,6 +199,23 @@ int main(void) {
     if (!check_match_key(u8"ãäåèéêëüõñ",
                          u8"aaaeeeeuon")) { return 1; }
 
+    // Hammer on match_key a bit
+    {
+        std::mt19937 gen; // note: unseeded - so this is deterministic
+        std::uniform_int_distribution<> cpt (1, 0x1ffff);
+        std::uniform_int_distribution<> len (3, 10);
+
+        for (int i = 0; i < 100000; i++) {
+            std::u32string s;
+            int n = len(gen);
+            for (int i = 0; i < n; i++) {
+                s += cpt(gen);
+            }
+
+            miniutf::match_key(miniutf::to_utf8(s));
+        }
+    }
+
     std::ifstream file("data-6.3.0/NormalizationTest.txt");
 
     string line;

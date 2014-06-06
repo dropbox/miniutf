@@ -138,8 +138,8 @@ void get_ducet_level1(std::u32string & str,
 
                 // S2.1.3 If there is a match, replace S by S + C, and remove C.
                 if (itr.first) {
-                    std::copy_backward(str.begin() + i + best_length, str.begin() + j,
-                                       str.begin() + j + 1);
+                    std::copy_backward(str.begin() + i + best_length, str.begin() + i + j,
+                                       str.begin() + i + j + 1);
                     str[i + best_length] = C;
                     best_key = itr;
                     best_length++;
