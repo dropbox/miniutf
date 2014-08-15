@@ -33,7 +33,7 @@ namespace miniutf {
 
 void utf8_encode(char32_t pt, std::string & out) {
     if (pt < 0x80) {
-        out += { static_cast<char>(pt) };
+        out += static_cast<char>(pt);
     } else if (pt < 0x800) {
         out += { static_cast<char>((pt >> 6)   | 0xC0),
                  static_cast<char>((pt & 0x3F) | 0x80) };
@@ -55,12 +55,12 @@ void utf8_encode(char32_t pt, std::string & out) {
 
 void utf16_encode(char32_t pt, std::u16string & out) {
     if (pt < 0x10000) {
-        out += { static_cast<char16_t>(pt) };
+        out += static_cast<char16_t>(pt);
     } else if (pt < 0x110000) {
         out += { static_cast<char16_t>(((pt - 0x10000) >> 10) + 0xD800),
                  static_cast<char16_t>((pt & 0x3FF) + 0xDC00) };
     } else {
-        out += { 0xFFFD };
+        out += 0xFFFD;
     }
 }
 
