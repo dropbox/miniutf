@@ -22,6 +22,7 @@
 #include <cstdio>
 #include <fstream>
 #include <sstream>
+#include <random>
 
 #include "miniutf.hpp"
 #include "miniutf_collation.hpp"
