@@ -21,9 +21,9 @@
 
 #include "miniutf_collation.hpp"
 
-#include <vector>
-#include <unordered_set>
 #include <cassert>
+#include <unordered_set>
+#include <vector>
 
 namespace miniutf {
 
