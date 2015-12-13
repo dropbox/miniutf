@@ -180,15 +180,28 @@ int main(void) {
 
     string utf8_test = { '\x61', '\x00', '\xF0', '\x9F', '\x92', '\xA9' };
     std::u16string utf16_test = { 0x61, 0, 0xD83D, 0xDCA9 };
+    std::wstring utf16w_test = { 0x61, 0, 0xD83D, 0xDCA9 };
 
     // We also have some tests of UTF-8 to UTF-16 conversion
     string utf8 = miniutf::to_utf8(utf16_test);
     if (!check_eq("16-to-8", utf8_test, utf8))
         return 1;
 
+    string utf8w = miniutf::to_utf8(utf16w_test);
+    if (!check_eq("16-to-8", utf8_test, utf8w))
+        return 1;
+
     std::u16string utf16 = miniutf::to_utf16(utf8_test);
     if (utf16 != utf16_test) {
         printf("utf8-to-utf16 test failed: got ");
+        for (size_t i = 0; i < utf16.length(); i++) printf("%04x ", (uint16_t)utf16[i]);
+        printf("\n");
+        return 1;
+    }
+
+    std::wstring utf16w = miniutf::to_utf16w(utf8_test);
+    if (utf16w != utf16w_test) {
+        printf("utf8-to-utf16w test failed: got ");
         for (size_t i = 0; i < utf16.length(); i++) printf("%04x ", (uint16_t)utf16[i]);
         printf("\n");
         return 1;
