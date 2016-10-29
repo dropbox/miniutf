@@ -224,7 +224,7 @@ def make_direct_map(name, func):
 
 def make_collation_element_table(collation_elements):
 
-    # The Defualt Unicode Collation Element Table (DUCET) is a mapping from sequences of
+    # The Default Unicode Collation Element Table (DUCET) is a mapping from sequences of
     # codepoints to sequences of collation elements. We only implement "level 1" (see
     # Unicode TR10 for more detail), so a collation element is the same as a "weight",
     # a 16-bit integer. We use 32-bit integers throughout to represent weights.
