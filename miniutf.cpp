@@ -53,7 +53,8 @@ void utf8_encode(char32_t pt, std::string & out) {
     }
 }
 
-void utf16_encode(char32_t pt, std::u16string & out) {
+template<typename StringType>
+void utf16_encode(char32_t pt, StringType & out) {
     if (pt < 0x10000) {
         out += static_cast<char16_t>(pt);
     } else if (pt < 0x110000) {
@@ -62,6 +63,14 @@ void utf16_encode(char32_t pt, std::u16string & out) {
     } else {
         out += 0xFFFD;
     }
+}
+
+void utf16_encode(char32_t pt, std::u16string & out) {
+    return utf16_encode<std::u16string>(pt, out);
+}
+
+void utf16_encode(char32_t pt, std::wstring & out) {
+    return utf16_encode<std::wstring>(pt, out);
 }
 
 /* * * * * * * * * *
@@ -140,7 +149,8 @@ static inline bool is_low_surrogate(char16_t c)  { return (c >= 0xDC00) && (c < 
 /*
  * Like utf8_decode_check, but for UTF-16.
  */
-static offset_pt utf16_decode_check(const std::u16string & str, std::u16string::size_type i) {
+template<typename StringType>
+    static offset_pt utf16_decode_check(const StringType & str, typename StringType::size_type i) {
     if (is_high_surrogate(str[i]) && is_low_surrogate(str[i+1])) {
         // High surrogate followed by low surrogate
         char32_t pt = (((str[i] - 0xD800) << 10) | (str[i+1] - 0xDC00)) + 0x10000;
@@ -149,7 +159,7 @@ static offset_pt utf16_decode_check(const std::u16string & str, std::u16string::
         // High surrogate *not* followed by low surrogate, or unpaired low surrogate
         return invalid_pt;
     } else {
-        return { 1, str[i] };
+        return { 1, (char32_t)str[i] };
     }
 }
 
@@ -182,9 +192,10 @@ char32_t utf8_decode(const std::string & str, std::string::size_type & i,
     }
 }
 
-char32_t utf16_decode(const std::u16string & str, std::u16string::size_type & i,
-                                                  bool * replacement_flag) {
-    offset_pt res = utf16_decode_check(str, i);
+template<typename StringType>
+static char32_t utf16_decode(const StringType & str, typename StringType::size_type & i,
+                             bool * replacement_flag) {
+    offset_pt res = utf16_decode_check<StringType>(str, i);
     if (res.offset < 0) {
         if (replacement_flag)
             *replacement_flag = true;
@@ -194,6 +205,18 @@ char32_t utf16_decode(const std::u16string & str, std::u16string::size_type & i,
         i += res.offset;
         return res.pt;
     }
+}
+
+char32_t utf16_decode(const std::u16string & str,
+                      std::u16string::size_type & pos,
+                      bool * replacement_flag) {
+    return utf16_decode<std::u16string>(str, pos, replacement_flag);
+}
+
+char32_t utf16_decode(const std::wstring & str,
+                      std::wstring::size_type & pos,
+                      bool * replacement_flag) {
+    return utf16_decode<std::wstring>(str, pos, replacement_flag);
 }
 
 /* * * * * * * * * *
@@ -212,7 +235,7 @@ bool check_helper(const Tfunc & func, const Tstring & str) {
 }
 
 bool utf8_check (const    std::string & str) { return check_helper(utf8_decode_check,  str); }
-bool utf16_check(const std::u16string & str) { return check_helper(utf16_decode_check, str); }
+    bool utf16_check(const std::u16string & str) { return check_helper(utf16_decode_check<std::u16string>, str); }
 bool utf32_check(const std::u32string & str) { return check_helper(utf32_decode_check, str); }
 
 /* * * * * * * * * *
@@ -227,20 +250,38 @@ std::u32string to_utf32(const std::string & str) {
     return out;
 }
 
-std::u16string to_utf16(const std::string & str) {
-    std::u16string out;
+template<typename StringType>
+StringType to_utf16_generic(const std::string & str) {
+    StringType out;
     out.reserve(str.length()); // likely overallocate
     for (std::string::size_type i = 0; i < str.length(); )
         utf16_encode(utf8_decode(str, i), out);
     return out;
 }
 
-std::string to_utf8(const std::u16string & str) {
+std::u16string to_utf16(const std::string & str) {
+    return to_utf16_generic<std::u16string>(str);
+}
+
+std::wstring to_utf16w(const std::string &str) {
+    return to_utf16_generic<std::wstring>(str);
+}
+
+template<typename StringType>
+std::string to_utf8_from_utf16(const StringType & str) {
     std::string out;
     out.reserve(str.length() * 3 / 2); // estimate
-    for (std::u16string::size_type i = 0; i < str.length(); )
+    for (typename StringType::size_type i = 0; i < str.length(); )
         utf8_encode(utf16_decode(str, i), out);
     return out;
+}
+
+std::string to_utf8(const std::u16string & str) {
+    return to_utf8_from_utf16<std::u16string>(str);
+}
+
+std::string to_utf8(const std::wstring & str) {
+    return to_utf8_from_utf16<std::wstring>(str);
 }
 
 std::string to_utf8(const std::u32string & str) {

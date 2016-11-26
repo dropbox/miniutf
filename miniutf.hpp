@@ -32,6 +32,7 @@ namespace miniutf {
  */
 void utf8_encode(char32_t pt, std::string & out);
 void utf16_encode(char32_t pt, std::u16string & out);
+void utf16_encode(char32_t pt, std::wstring & out);
 
 /*
  * Character-at-a-time decoding. Decodes and returns the codepoint starting at str[pos],
@@ -43,8 +44,13 @@ void utf16_encode(char32_t pt, std::u16string & out);
 char32_t utf8_decode(const std::string & str,
                      std::string::size_type & pos,
                      bool * replacement_flag = nullptr);
+
 char32_t utf16_decode(const std::u16string & str,
                       std::u16string::size_type & pos,
+                      bool * replacement_flag = nullptr);
+
+char32_t utf16_decode(const std::wstring & str,
+                      std::wstring::size_type & pos,
                       bool * replacement_flag = nullptr);
 
 /*
@@ -72,6 +78,12 @@ std::u32string to_utf32(const std::string & str);
 std::u16string to_utf16(const std::string & str);
 std::string to_utf8(const std::u16string & str);
 std::string to_utf8(const std::u32string & str);
+
+/*
+ * Convert back and forth between UTF-8 and UTF-16 from wstring.
+ */
+std::string to_utf8(const std::wstring & str);
+std::wstring to_utf16w(const std::string &str);
 
 /*
  * Convert str to lowercase, per the built-in Unicode lowercasing map (codepoint-by-codepoint).
